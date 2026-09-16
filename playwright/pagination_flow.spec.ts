@@ -1,127 +1,104 @@
-This is a production-ready, enterprise-grade QA Automation architecture built with **Playwright** and **TypeScript**. It implements the **Page Object Model (POM)** design pattern, strict type safety, environment configuration handling, dynamic reporting, secure credential management via environment variables, and authentication state persistence.
+This document presents a production-ready, enterprise-grade QA Automation Framework built using **Playwright** and **TypeScript**. The architecture strictly follows the **Page Object Model (POM)** design pattern, incorporating object-oriented design principles, robust explicit waiting mechanisms, complete type safety, environment configuration, and clean test separation.
 
 ---
 
 ### 📂 Folder Structure
 
-```text
+```
 automation-project/
 ├── .env
-├── utils/
-│   └── envUtils.ts
 ├── package.json
 ├── playwright.config.ts
 ├── pages/
 │   ├── BasePage.ts
-│   ├── LoginPage.ts
-│   └── DashboardPage.ts
-└── tests/
-    ├── auth.setup.ts
-    └── login.spec.ts
+│   └── PaginationPage.ts
+├── tests/
+│   └── pagination.spec.ts
+└── utils/
+    └── envUtils.ts
 ```
 
 ---
 
 ### --- Configuration & Dependencies
 
-#### 1. `.env`
-
+#### File: `.env`
 ```env
-# Application Under Test Configuration
-BASE_URL=https://opensource-demo.orangehrmlive.com
+# Application Base URL
+BASE_URL=https://example.com/records
 
-# Sensitive Credentials (DO NOT HARDCODE IN SOURCE CODE)
-TEST_USERNAME=Admin
-TEST_PASSWORD=admin123
+# Test User Credentials
+TEST_EMAIL=qa_automation_user@example.com
 ```
 
----
-
-#### 2. `utils/envUtils.ts`
-
+#### File: `utils/envUtils.ts`
 ```typescript
 import * as dotenv from 'dotenv';
-import path from 'path';
 
-// Load environment variables from .env file
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config();
 
 /**
- * Utility class for managing environment variables and configuration settings.
+ * Utility class to manage and expose environment configurations securely.
  */
 export class EnvUtils {
-  public static readonly BASE_URL: string = process.env.BASE_URL || 'https://opensource-demo.orangehrmlive.com';
-  public static readonly TEST_USERNAME: string = process.env.TEST_USERNAME || 'Admin';
-  public static readonly TEST_PASSWORD: string = process.env.TEST_PASSWORD || 'admin123';
+  public static readonly BASE_URL: string = process.env.BASE_URL || 'https://example.com/records';
+  public static readonly TEST_EMAIL: string = process.env.TEST_EMAIL || 'qa_automation_user@example.com';
 }
 ```
 
----
-
-#### 3. `package.json`
-
+#### File: `package.json`
 ```json
 {
-  "name": "playwright-typescript-automation-framework",
+  "name": "playwright-typescript-framework",
   "version": "1.0.0",
-  "description": "Production-ready QA Automation Framework using Playwright, TypeScript, and Page Object Model",
+  "description": "Production-grade enterprise QA automation framework built with Playwright and TypeScript",
   "main": "index.js",
   "scripts": {
-    "test": "npx playwright test",
-    "test:headed": "npx playwright test --headed",
-    "test:ui": "npx playwright test --ui",
-    "report": "npx playwright show-report"
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
   },
   "keywords": [
     "playwright",
     "typescript",
     "automation",
+    "qa",
     "testing",
     "pom"
   ],
-  "author": "QA Architecture Team",
+  "author": "Senior QA Architect",
   "license": "ISC",
   "devDependencies": {
-    "@playwright/test": "^1.42.1",
-    "@types/node": "^20.11.24",
-    "dotenv": "^16.4.5",
-    "typescript": "^5.3.3"
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.10.0",
+    "dotenv": "^16.3.1",
+    "typescript": "^5.3.0"
   }
 }
 ```
 
----
-
-#### 4. `playwright.config.ts`
-
+#### File: `playwright.config.ts`
 ```typescript
 import { defineConfig, devices } from '@playwright/test';
 import { EnvUtils } from './utils/envUtils';
 import path from 'path';
 
-/**
- * Path to store authentication state for user session reuse.
- */
-const STORAGE_STATE = path.join(__dirname, 'playwright/.auth/user.json');
-
-/**
- * Generate a unique timestamp for isolated test run outputs.
- */
 const runId = new Date().getTime();
+const STORAGE_STATE = path.join(__dirname, 'playwright/.auth/user.json');
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: false,
-  workers: 1,
-  retries: 0,
   timeout: 180000,
   expect: {
     timeout: 60000,
   },
-  outputDir: `test-results/run-${runId}`,
+  fullyParallel: false,
+  workers: 1,
+  retries: 0,
+  outputDir: 'test-results/run-' + runId,
   reporter: [
-    ['html', { outputFolder: `playwright-report/run-${runId}`, open: 'never' }],
-    ['list']
+    ['html', { outputFolder: 'playwright-report/run-' + runId }]
   ],
   use: {
     baseURL: EnvUtils.BASE_URL,
@@ -132,16 +109,10 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'setup',
-      testMatch: /.*\.setup\.ts/,
-    },
-    {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        storageState: STORAGE_STATE,
       },
-      dependencies: ['setup'],
     },
   ],
 });
@@ -151,17 +122,16 @@ export default defineConfig({
 
 ### --- Page Object Model (POM)
 
-#### 5. `pages/BasePage.ts`
-
+#### File: `pages/BasePage.ts`
 ```typescript
 import { expect, Locator, Page } from '@playwright/test';
 
 /**
- * Abstract BasePage providing core wrapper methods for page actions and assertions.
+ * Abstract BasePage providing core wrapper methods and shared functionality for all Page Objects.
  */
 export abstract class BasePage {
   /**
-   * Public access to Playwright Page object.
+   * Public Playwright Page object.
    */
   public readonly page: Page;
 
@@ -170,172 +140,158 @@ export abstract class BasePage {
   }
 
   /**
-   * Navigates to a specific path or URL.
-   * @param path Target URL path.
+   * Navigates to the specified path or URL.
+   * @param path Target path or URL
    */
-  public async navigateTo(path: string = ''): Promise<void> {
-    await this.page.goto(path, { waitUntil: 'domcontentloaded' });
+  public async navigateTo(path: string): Promise<void> {
+    await this.page.goto(path);
   }
 
   /**
-   * Fills an input field with specified text value.
-   * @param locator Playwright Locator target.
-   * @param value String value to enter.
-   */
-  public async fillInput(locator: Locator, value: string): Promise<void> {
-    await locator.waitFor({ state: 'visible', timeout: 10000 });
-    await locator.fill(value);
-  }
-
-  /**
-   * Clicks on a targeted element.
-   * @param locator Playwright Locator target.
+   * Clicks on an element after ensuring it is enabled.
+   * @param locator Target Locator
    */
   public async clickElement(locator: Locator): Promise<void> {
-    await locator.waitFor({ state: 'visible', timeout: 10000 });
+    await this.waitForEnabled(locator);
     await locator.click();
   }
 
   /**
-   * Extracts text content from a specified locator safely.
-   * @param locator Playwright Locator target.
+   * Fills text into an input field using Playwright fill API.
+   * @param locator Target Locator
+   * @param value Text value to input
    */
-  public async getText(locator: Locator): Promise<string> {
-    await locator.waitFor({ state: 'visible', timeout: 10000 });
-    return (await locator.textContent())?.trim() || '';
+  public async fillField(locator: Locator, value: string): Promise<void> {
+    await locator.fill(value);
   }
 
   /**
-   * Waits for an element to be enabled.
-   * @param locator Playwright Locator target.
-   * @param timeout Optional timeout override in milliseconds.
+   * Retrieves text content from a locator securely.
+   * @param locator Target Locator
+   */
+  public async getText(locator: Locator): Promise<string> {
+    return (await locator.textContent()) || '';
+  }
+
+  /**
+   * Explicitly waits until a locator is enabled.
+   * @param locator Target Locator
+   * @param timeout Optional timeout override
    */
   public async waitForEnabled(locator: Locator, timeout?: number): Promise<void> {
     await expect(locator).toBeEnabled({ timeout: timeout ?? 10000 });
   }
 
   /**
-   * Verifies element visibility.
-   * @param locator Playwright Locator target.
+   * Checks if an element is currently visible on the page.
+   * @param locator Target Locator
    */
-  public async isElementVisible(locator: Locator): Promise<boolean> {
-    try {
-      await locator.waitFor({ state: 'visible', timeout: 5000 });
-      return await locator.isVisible();
-    } catch {
-      return false;
+  public async isVisible(locator: Locator): Promise<boolean> {
+    return await locator.isVisible();
+  }
+}
+```
+
+#### File: `pages/PaginationPage.ts`
+```typescript
+import { expect, Locator, Page } from '@playwright/test';
+import { BasePage } from './BasePage';
+
+/**
+ * Page Object encapsulating pagination component elements and actions.
+ */
+export class PaginationPage extends BasePage {
+  public readonly itemsPerPageDropdown: Locator;
+  public readonly summaryText: Locator;
+  public readonly nextPageButton: Locator;
+  public readonly previousPageButton: Locator;
+  public readonly activePageIndicator: Locator;
+  public readonly pageInput: Locator;
+  public readonly jumpButton: Locator;
+  public readonly tableRows: Locator;
+  public readonly errorMessage: Locator;
+
+  constructor(page: Page) {
+    super(page);
+    this.itemsPerPageDropdown = page.getByRole('combobox', { name: 'Items per page' });
+    this.summaryText = page.getByTestId('pagination-summary');
+    this.nextPageButton = page.getByRole('button', { name: 'Next Page' });
+    this.previousPageButton = page.getByRole('button', { name: 'Previous Page' });
+    this.activePageIndicator = page.getByTestId('active-page');
+    this.pageInput = page.getByRole('spinbutton', { name: 'Page number' });
+    this.jumpButton = page.getByRole('button', { name: 'Go' });
+    this.tableRows = page.locator('table tbody tr');
+    this.errorMessage = page.getByRole('alert');
+  }
+
+  /**
+   * Selects a page size option from the items-per-page dropdown.
+   * @param pageSize Page size string value (e.g., '10', '25', '50')
+   */
+  public async selectItemsPerPage(pageSize: string): Promise<void> {
+    await this.itemsPerPageDropdown.selectOption(pageSize);
+  }
+
+  /**
+   * Gets the current summary text display.
+   */
+  public async getSummaryText(): Promise<string> {
+    return await this.getText(this.summaryText);
+  }
+
+  /**
+   * Clicks the Next Page button.
+   */
+  public async clickNextPage(): Promise<void> {
+    await this.clickElement(this.nextPageButton);
+  }
+
+  /**
+   * Clicks the Previous Page button.
+   */
+  public async clickPreviousPage(): Promise<void> {
+    await this.clickElement(this.previousPageButton);
+  }
+
+  /**
+   * Retrieves the active page indicator number text.
+   */
+  public async getActivePageNumber(): Promise<string> {
+    return await this.getText(this.activePageIndicator);
+  }
+
+  /**
+   * Inputs a value into the direct page jump field.
+   * @param pageNumber Target page number string
+   */
+  public async enterPageNumber(pageNumber: string): Promise<void> {
+    await this.fillField(this.pageInput, pageNumber);
+  }
+
+  /**
+   * Submits the page jump field using the Enter key.
+   * @param pageNumber Target page number string
+   */
+  public async jumpToPage(pageNumber: string): Promise<void> {
+    await this.enterPageNumber(pageNumber);
+    await this.pageInput.press('Enter');
+  }
+
+  /**
+   * Retrieves the count of visible records in the table grid.
+   */
+  public async getTableRowCount(): Promise<number> {
+    return await this.tableRows.count();
+  }
+
+  /**
+   * Retrieves validation or error message text if visible.
+   */
+  public async getErrorMessageText(): Promise<string> {
+    if (await this.isVisible(this.errorMessage)) {
+      return await this.getText(this.errorMessage);
     }
-  }
-}
-```
-
----
-
-#### 6. `pages/LoginPage.ts`
-
-```typescript
-import { expect, Locator, Page } from '@playwright/test';
-import { BasePage } from './BasePage';
-import { EnvUtils } from '../utils/envUtils';
-
-/**
- * Page Object capturing elements and behaviors for the Login Page.
- */
-export class LoginPage extends BasePage {
-  // Public locators adhering to Playwright priority rules
-  public readonly usernameInput: Locator;
-  public readonly passwordInput: Locator;
-  public readonly loginButton: Locator;
-  public readonly brandingLogo: Locator;
-  public readonly loginHeading: Locator;
-  public readonly errorMessageBanner: Locator;
-
-  constructor(page: Page) {
-    super(page);
-    this.usernameInput = page.getByPlaceholder('Username');
-    this.passwordInput = page.getByPlaceholder('Password');
-    this.loginButton = page.getByRole('button', { name: 'Login' });
-    this.brandingLogo = page.getByAltText('company-branding');
-    this.loginHeading = page.getByRole('heading', { name: 'Login' });
-    this.errorMessageBanner = page.getByRole('alert');
-  }
-
-  /**
-   * Navigates directly to the Login page URL.
-   */
-  public async navigateToLoginPage(): Promise<void> {
-    await this.navigateTo(EnvUtils.BASE_URL);
-  }
-
-  /**
-   * Enters username credentials.
-   * @param username Target username.
-   */
-  public async enterUsername(username: string): Promise<void> {
-    await this.fillInput(this.usernameInput, username);
-  }
-
-  /**
-   * Enters password credentials.
-   * @param password Target password.
-   */
-  public async enterPassword(password: string): Promise<void> {
-    await this.fillInput(this.passwordInput, password);
-  }
-
-  /**
-   * Clicks the login submit button.
-   */
-  public async clickLoginButton(): Promise<void> {
-    await this.clickElement(this.loginButton);
-  }
-
-  /**
-   * Performs full login flow using provided credentials.
-   * @param username Target username string.
-   * @param password Target password string.
-   */
-  public async performLogin(username: string, password: string): Promise<void> {
-    await this.enterUsername(username);
-    await this.enterPassword(password);
-    await this.clickLoginButton();
-  }
-
-  /**
-   * Retrieves displayed error alert text.
-   */
-  public async getErrorMessage(): Promise<string> {
-    return await this.getText(this.errorMessageBanner);
-  }
-}
-```
-
----
-
-#### 7. `pages/DashboardPage.ts`
-
-```typescript
-import { expect, Locator, Page } from '@playwright/test';
-import { BasePage } from './BasePage';
-
-/**
- * Page Object representing the main application Dashboard after authentication.
- */
-export class DashboardPage extends BasePage {
-  public readonly dashboardHeading: Locator;
-  public readonly userDropdown: Locator;
-
-  constructor(page: Page) {
-    super(page);
-    this.dashboardHeading = page.getByRole('heading', { name: 'Dashboard' });
-    this.userDropdown = page.locator('.oxd-userdropdown');
-  }
-
-  /**
-   * Asserts that the dashboard header is visible confirming authentication success.
-   */
-  public async verifyDashboardLoaded(): Promise<void> {
-    await expect(this.dashboardHeading).toBeVisible({ timeout: 15000 });
+    return '';
   }
 }
 ```
@@ -344,106 +300,55 @@ export class DashboardPage extends BasePage {
 
 ### --- Test Implementation
 
-#### 8. `tests/auth.setup.ts`
-
-```typescript
-import { test as setup, expect } from '@playwright/test';
-import { LoginPage } from '../pages/LoginPage';
-import { DashboardPage } from '../pages/DashboardPage';
-import { EnvUtils } from '../utils/envUtils';
-import path from 'path';
-
-const authFile = path.join(__dirname, '../playwright/.auth/user.json');
-
-/**
- * Authentication Setup hook generating reusable user state file.
- */
-setup('Authenticate user session', async ({ page }) => {
-  const loginPage = new LoginPage(page);
-  const dashboardPage = new DashboardPage(page);
-
-  await loginPage.navigateToLoginPage();
-  await loginPage.performLogin(EnvUtils.TEST_USERNAME, EnvUtils.TEST_PASSWORD);
-  await dashboardPage.verifyDashboardLoaded();
-
-  // Persist session state into state storage JSON
-  await page.context().storageState({ path: authFile });
-});
-```
-
----
-
-#### 9. `tests/login.spec.ts`
-
+#### File: `tests/pagination.spec.ts`
 ```typescript
 import { test, expect, Page } from '@playwright/test';
-import { LoginPage } from '../pages/LoginPage';
-import { DashboardPage } from '../pages/DashboardPage';
+import { PaginationPage } from '../pages/PaginationPage';
 import { EnvUtils } from '../utils/envUtils';
 
-test.describe('Authentication & Login Module Tests', () => {
-  let loginPage: LoginPage;
-  let dashboardPage: DashboardPage;
+test.describe('Pagination Module Functional & Validation Tests', () => {
+  let paginationPage: PaginationPage;
 
   test.beforeEach(async ({ page }: { page: Page }) => {
-    loginPage = new LoginPage(page);
-    dashboardPage = new DashboardPage(page);
-    await loginPage.navigateToLoginPage();
+    await page.goto(EnvUtils.BASE_URL);
+    paginationPage = new PaginationPage(page);
   });
 
-  test('TC-TS-001-001: Verify successful authentication with valid credentials', async ({ page }: { page: Page }, testInfo) => {
-    // Clear state for explicit positive authentication execution
-    await page.context().clearCookies();
-    await loginPage.navigateToLoginPage();
+  test('TC-IMG-001: Verify Pagination Controls Display and Default Page Summary', async ({ page }: { page: Page }, testInfo) => {
+    await expect(paginationPage.itemsPerPageDropdown).toBeVisible();
+    await expect(paginationPage.summaryText).toBeVisible();
+    await expect(paginationPage.nextPageButton).toBeVisible();
+    await expect(paginationPage.previousPageButton).toBeVisible();
 
-    await loginPage.performLogin(EnvUtils.TEST_USERNAME, EnvUtils.TEST_PASSWORD);
-    await dashboardPage.verifyDashboardLoaded();
-    await expect(dashboardPage.dashboardHeading).toHaveText('Dashboard');
+    const summaryText = await paginationPage.getSummaryText();
+    expect(summaryText).not.toBe('');
   });
 
-  test('TC-TS-001-002: Verify error handling when attempting login with invalid credentials', async ({ page }: { page: Page }, testInfo) => {
-    await loginPage.performLogin('NonExistentUser', 'InvalidPassword123');
+  test('TC-IMG-002: Verify Page Navigation Using Next and Previous Buttons', async ({ page }: { page: Page }, testInfo) => {
+    await paginationPage.clickNextPage();
+    let activePage = await paginationPage.getActivePageNumber();
+    expect(activePage).toContain('2');
 
-    const errorMsg = await loginPage.getErrorMessage();
-    expect(errorMsg).toContain('Invalid credentials');
-    await expect(loginPage.usernameInput).toBeVisible();
+    await paginationPage.clickPreviousPage();
+    activePage = await paginationPage.getActivePageNumber();
+    expect(activePage).toContain('1');
   });
 
-  test('TC-TS-001-003: Verify UI components and visual elements on the login page', async ({ page }: { page: Page }, testInfo) => {
-    await expect(loginPage.brandingLogo).toBeVisible();
-    await expect(loginPage.loginHeading).toBeVisible();
-    await expect(loginPage.usernameInput).toBeVisible();
-    await expect(loginPage.passwordInput).toBeVisible();
-    await expect(loginPage.loginButton).toBeVisible();
+  test('TC-IMG-003: Verify Boundary and Invalid Input Handling in Direct Page Jump Field', async ({ page }: { page: Page }, testInfo) => {
+    const invalidInputs = ['9999', '-5', 'abc@'];
 
-    await loginPage.waitForEnabled(loginPage.loginButton);
+    for (const invalidInput of invalidInputs) {
+      await paginationPage.jumpToPage(invalidInput);
+      const activePage = await paginationPage.getActivePageNumber();
+      expect(activePage).not.toBe(invalidInput);
+    }
   });
 
-  test('TC-TS-002-001: Verify authentication failure when entering a valid username and an invalid password', async ({ page }: { page: Page }, testInfo) => {
-    await loginPage.performLogin(EnvUtils.TEST_USERNAME, 'WrongPassword!');
-
-    const errorMsg = await loginPage.getErrorMessage();
-    expect(errorMsg).toContain('Invalid credentials');
-    await expect(page).toHaveURL(/.*login/);
-  });
-
-  test('TC-TS-002-002: Verify authentication failure when entering an unregistered username', async ({ page }: { page: Page }, testInfo) => {
-    await loginPage.performLogin('unregistered_user@example.com', EnvUtils.TEST_PASSWORD);
-
-    const errorMsg = await loginPage.getErrorMessage();
-    expect(errorMsg).toContain('Invalid credentials');
-    await expect(loginPage.loginButton).toBeVisible();
-  });
-
-  test('TC-TS-002-003: Verify authentication failure when entering malformed or security script payloads', async ({ page }: { page: Page }, testInfo) => {
-    const scriptPayload = "<script>alert('xss')</script>";
-    const sqlPayload = "' OR '1'='1";
-
-    await loginPage.performLogin(scriptPayload, sqlPayload);
-
-    const errorMsg = await loginPage.getErrorMessage();
-    expect(errorMsg).toContain('Invalid credentials');
-    await expect(loginPage.loginHeading).toBeVisible();
+  test('TC-IMG-004: Verify Changing Items Per Page Updates Table Grid Dynamically', async ({ page }: { page: Page }, testInfo) => {
+    await paginationPage.selectItemsPerPage('25');
+    const rowCount = await paginationPage.getTableRowCount();
+    expect(rowCount).toBeGreaterThan(0);
+    expect(rowCount).toBeLessThanOrEqual(25);
   });
 });
 ```
